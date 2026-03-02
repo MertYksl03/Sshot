@@ -8,7 +8,10 @@ SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 
 SDL_FRect current_rect = {0, 0, 0, 0};
+SDL_FRect save_button_rect = {0, 0, 20, 20};
+SDL_FRect copy_button_rect = {0, 0, 20, 20};
 bool is_drawing = false;
+bool is_mouse_over_buttons = false;
 float start_x, start_y;
 
 
@@ -78,6 +81,12 @@ uint8_t process_input(SDL_Event *event) {
                     current_rect.y = start_y;
                     current_rect.w = 0;
                     current_rect.h = 0;
+
+                    // Initialize button positions based on starting point
+                    save_button_rect.x = current_rect.x + current_rect.w - save_button_rect.w;
+                    save_button_rect.y = current_rect.y + current_rect.h + 10; // 10 pixels below the rect
+                    copy_button_rect.x = save_button_rect.x - copy_button_rect.w - 10; // 10 pixels to the left of save button
+                    copy_button_rect.y = save_button_rect.y;    
                 }
                 break;
 
@@ -86,6 +95,12 @@ uint8_t process_input(SDL_Event *event) {
                     // Calculate width/height based on current mouse pos
                     current_rect.w = event->motion.x - start_x;
                     current_rect.h = event->motion.y - start_y;
+
+                //     // Calculate button positions based on current rect
+                //     save_button_rect.x = current_rect.x + current_rect.w - save_button_rect.w;
+                //     save_button_rect.y = current_rect.y + current_rect.h + 10; // 10 pixels below the rect
+                //     copy_button_rect.x = save_button_rect.x - copy_button_rect.w - 10; // 10 pixels to the left of save button
+                //     copy_button_rect.y = save_button_rect.y;
                 }
                 break;
 
@@ -101,6 +116,12 @@ uint8_t process_input(SDL_Event *event) {
                         current_rect.y += current_rect.h;
                         current_rect.h = -current_rect.h;
                     }
+
+                    // Update button positions based on final rect
+                    save_button_rect.x = current_rect.x + current_rect.w - save_button_rect.w;
+                    save_button_rect.y = current_rect.y + current_rect.h + 10; //
+                    copy_button_rect.x = save_button_rect.x - copy_button_rect.w - 10; // 10 pixels to the left of save button
+                    copy_button_rect.y = save_button_rect.y;
                 }
                 break;
                     break;
@@ -128,6 +149,17 @@ void render() {
         // Draw the outline (Bright Blue)
         SDL_SetRenderDrawColor(renderer, 0, 200, 255, 255);
         SDL_RenderRect(renderer, &current_rect);
+
+
+        if (!is_drawing) {
+            // Draw the buttons only when not drawing
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+            SDL_RenderFillRect(renderer, &save_button_rect);
+
+            SDL_SetRenderDrawColor(renderer, 128, 128, 128, 255);
+            SDL_RenderFillRect(renderer, &copy_button_rect);
+        }
     }
 
     // Present the rendered frame to the screen
