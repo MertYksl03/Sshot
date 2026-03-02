@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Werror -g -std=c99
-LIBS = -lSDL3 -lm
+LIBS = -lSDL3 -lSDL3_image -lm
 SRC_DIR = src
 OBJ_DIR = obj
 OUT = out

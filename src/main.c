@@ -1,39 +1,96 @@
 #include "main.h"
 
+#define DEV_MODE 1 // Set to 1 to enable dev mode features (e.g., using local asset/config paths)
+
+#if DEV_MODE
+    #define ASSET_PATH "src/assets/"
+    #define CONFIG_PATH "src/config/"
+#else 
+    #define ASSET_PATH "usr/local/share/sshot"
+    #define CONFIG_PATH "~/.config/sshot" 
+#endif
+
 #define TITLE "SSHot" // Window title(may be changed later)
 #define DEFAULT_WIDTH 800
 #define DEFAULT_HEIGHT 600
+#define DEFAULT_BUTTON_SIZE 20
 
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 
-SDL_FRect current_rect = {0, 0, 0, 0};
-SDL_FRect save_button_rect = {0, 0, 20, 20};
-SDL_FRect copy_button_rect = {0, 0, 20, 20};
-bool is_drawing = false;
+SDL_FRect current_rect = {0, 0, 0, 0}; // To store the current selection rectangle
+
+Button *save_button;
+Button *copy_button;
+Button *fullscreen_button;
+int fscreen_button_spacing = 20; // Spacing between buttons
+
+
+
+bool is_drawing_selection_rect = false;
+bool is_dragging_selection_rect = false;
 bool is_mouse_over_buttons = false;
 float start_x, start_y;
 
+void func1(ButtonType type) {
+    // Placeholder for a function that will be called when a button is clicked
+    switch (type)
+    {
+    case SAVE:
+        printf("Save button clicked!\n");
+        break;
+    case COPY:
+        printf("Copy button clicked!\n");
+        break;
+    case FULLSCREEN:
+        printf("Fullscreen button clicked!\n");
+        break;
+    default:
+        printf("Button of type %d clicked!\n", type);
+        break;
+    }
+}
 
 int main(void) {
     if (!initialize_window()) {
         return 1; // Exit with error code if initialization fails
     }
-    uint8_t is_running = true;
+    bool is_running = true;
     SDL_Event event;    
 
+    // Create buttons
+    save_button = create_button(renderer, SAVE, ASSET_PATH "save_icon.svg", 0, 0, DEFAULT_BUTTON_SIZE);
+    copy_button = create_button(renderer, COPY, ASSET_PATH "copy_icon.svg", 0, 0, DEFAULT_BUTTON_SIZE);
+    fullscreen_button = create_button(renderer, FULLSCREEN, ASSET_PATH "fullscreen_icon.svg", 0, 0, DEFAULT_BUTTON_SIZE);
+
+    // Bind buttons to functions
+    bind_button_to_function(save_button, func1);
+    bind_button_to_function(copy_button, func1);
+    bind_button_to_function(fullscreen_button, func1);
+
+    // Top right corner for fullscreen button
+    fullscreen_button->rect.x = DEFAULT_WIDTH - DEFAULT_BUTTON_SIZE - fscreen_button_spacing;
+    fullscreen_button->rect.y = fscreen_button_spacing;
+
+    Button *buttons[] = {save_button, copy_button, fullscreen_button};
+
+    // Main loop
     while (is_running) {
-        is_running = process_input(&event);
+        is_running = process_input(&event, buttons);
         update();
         render();
     }
 
+    // print buttons for the last time for debugging
+    for (int i = 0; i < sizeof(buttons)/sizeof(buttons[0]); i++) {
+        printf("Button %d: {%f, %f, %f, %f}\n", i, buttons[i]->rect.x, buttons[i]->rect.y, buttons[i]->rect.w, buttons[i]->rect.h);
+    }
     QUIT();
     
     return 0;
 }
 
-int initialize_window() {
+bool initialize_window() {
     if (SDL_Init(SDL_INIT_VIDEO) != true) {
            fprintf(stderr, "Error initializing SDL: %s\n", SDL_GetError());
            return false;
@@ -57,7 +114,7 @@ int initialize_window() {
     return true;
 }
 
-uint8_t process_input(SDL_Event *event) {
+bool process_input(SDL_Event *event, Button *buttons[]) {
     while (SDL_PollEvent(event))
         {
             switch (event->type)
@@ -73,58 +130,22 @@ uint8_t process_input(SDL_Event *event) {
                     }   
                 case SDL_EVENT_MOUSE_BUTTON_DOWN:
                 if (event->button.button == SDL_BUTTON_LEFT) {
-                    is_drawing = true;
-                    start_x = event->button.x;
-                    start_y = event->button.y;
-                    // Initialize rect at click point
-                    current_rect.x = start_x;
-                    current_rect.y = start_y;
-                    current_rect.w = 0;
-                    current_rect.h = 0;
-
-                    // Initialize button positions based on starting point
-                    save_button_rect.x = current_rect.x + current_rect.w - save_button_rect.w;
-                    save_button_rect.y = current_rect.y + current_rect.h + 10; // 10 pixels below the rect
-                    copy_button_rect.x = save_button_rect.x - copy_button_rect.w - 10; // 10 pixels to the left of save button
-                    copy_button_rect.y = save_button_rect.y;    
+                    mouse_left_button_down(event, &is_drawing_selection_rect, &is_dragging_selection_rect, &start_x, &start_y, &current_rect, buttons);
                 }
                 break;
 
             case SDL_EVENT_MOUSE_MOTION:
-                if (is_drawing) {
+                if (is_drawing_selection_rect || is_dragging_selection_rect) {
                     // Calculate width/height based on current mouse pos
-                    current_rect.w = event->motion.x - start_x;
-                    current_rect.h = event->motion.y - start_y;
-
-                //     // Calculate button positions based on current rect
-                //     save_button_rect.x = current_rect.x + current_rect.w - save_button_rect.w;
-                //     save_button_rect.y = current_rect.y + current_rect.h + 10; // 10 pixels below the rect
-                //     copy_button_rect.x = save_button_rect.x - copy_button_rect.w - 10; // 10 pixels to the left of save button
-                //     copy_button_rect.y = save_button_rect.y;
+                    mouse_motion(event, &is_drawing_selection_rect, &is_dragging_selection_rect, &start_x, &start_y, &current_rect);
                 }
                 break;
 
             case SDL_EVENT_MOUSE_BUTTON_UP:
                 if (event->button.button == SDL_BUTTON_LEFT) {
-                    is_drawing = false;
-                    // Handle "negative" dragging (dragging up/left)
-                    if (current_rect.w < 0) {
-                        current_rect.x += current_rect.w;
-                        current_rect.w = -current_rect.w;
-                    }
-                    if (current_rect.h < 0) {
-                        current_rect.y += current_rect.h;
-                        current_rect.h = -current_rect.h;
-                    }
-
-                    // Update button positions based on final rect
-                    save_button_rect.x = current_rect.x + current_rect.w - save_button_rect.w;
-                    save_button_rect.y = current_rect.y + current_rect.h + 10; //
-                    copy_button_rect.x = save_button_rect.x - copy_button_rect.w - 10; // 10 pixels to the left of save button
-                    copy_button_rect.y = save_button_rect.y;
+                    mouse_left_button_up(event, &is_drawing_selection_rect, &is_dragging_selection_rect, &start_x, &start_y, &current_rect, &save_button->rect, &copy_button->rect);
                 }
                 break;
-                    break;
             }
         }
 
@@ -137,10 +158,12 @@ void update() {
 
 void render() {
     // Clear the screen with a color (e.g., black)
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+
+    // SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_SetRenderDrawColor(renderer, 245, 245, 245, 255);
     SDL_RenderClear(renderer);
 
-    if (is_drawing || (current_rect.w != 0 && current_rect.h != 0)) {
+    if (is_drawing_selection_rect || is_dragging_selection_rect || (current_rect.w != 0 && current_rect.h != 0)) {
         // Draw the fill (Semi-transparent Blue)
         // SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         // SDL_SetRenderDrawColor(renderer, 0, 120, 255, 100);
@@ -150,24 +173,34 @@ void render() {
         SDL_SetRenderDrawColor(renderer, 0, 200, 255, 255);
         SDL_RenderRect(renderer, &current_rect);
 
-
-        if (!is_drawing) {
+        if (!is_drawing_selection_rect && !is_dragging_selection_rect) {
             // Draw the buttons only when not drawing
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-            SDL_RenderFillRect(renderer, &save_button_rect);
-
-            SDL_SetRenderDrawColor(renderer, 128, 128, 128, 255);
-            SDL_RenderFillRect(renderer, &copy_button_rect);
+            render_button(renderer, save_button);
+            render_button(renderer, copy_button);
         }
     }
+
+    //Render fullscreen button always
+    render_button(renderer, fullscreen_button);
 
     // Present the rendered frame to the screen
     SDL_RenderPresent(renderer);
     return;
 }
 
+// load and create textures, initialize variables, etc.
+bool load_assets() {
+    // TODO
+    return true;
+}
+
 void QUIT() { 
+    // Destroy buttons
+    destroy_button(save_button);
+    destroy_button(copy_button);
+    destroy_button(fullscreen_button);
+    
     // Destroy renderer, window and quit
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
