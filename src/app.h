@@ -1,0 +1,33 @@
+/*
+The header file for all the global variables and functions
+*/
+
+#ifndef APP_H
+#define APP_H
+
+#include <stdio.h>
+#include <SDL3/SDL.h>
+#include <SDL3_image/SDL_image.h>
+
+#include "mouse.h"
+#include "buttons.h"
+
+// helper macro to set draw color using SDL_Color struct
+#define SDL_SetRenderDrawColorStruct(renderer, color) SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+
+// Program succes enum 
+enum {
+    APP_SUCCESS = 0,
+    APP_FAILURE = 1, // General failure, can be used for any error
+    APP_ERROR_INIT = 2,
+    APP_ERROR_ASSET_LOAD = 3,
+    APP_ERROR_RENDER = 4,
+    // TODO: Add more specific error codes later (e.g., APP_ERROR_WINDOW_INIT, APP_ERROR_ASSET_LOAD, etc.)
+};
+
+// Function prototypes
+int APP_INIT();
+int APP_RUN(void);
+void APP_QUIT();
+
+#endif // APP_H
