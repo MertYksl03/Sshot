@@ -49,7 +49,6 @@ UndoNode *undo_stack = NULL;
 UndoNode *push(UndoNode *stack, UndoState *state) {
     UndoNode *new_node = malloc(sizeof(UndoNode));
     if (!new_node) {
-        printf("Failed to allocate memory for undo node\n");
         return stack; // Return existing stack if allocation fails
     }
     new_node->state = state;
@@ -62,7 +61,6 @@ void push_undo_state(SDL_Renderer* renderer, SDL_Texture *image_tex, SDL_FRect i
     // Create a new undo state and push it onto the stack
     UndoState *state = malloc(sizeof(UndoState));
     if (!state) {
-        printf("Failed to allocate memory for undo state\n");
         return;
     }
 
@@ -76,7 +74,6 @@ void push_undo_state(SDL_Renderer* renderer, SDL_Texture *image_tex, SDL_FRect i
 
 void undo(SDL_Renderer* renderer, SDL_Texture **image_tex, SDL_FRect *image_rect, float *image_tex_width, float *image_tex_height) {
     if (!undo_stack) {
-        printf("Undo stack is empty, cannot undo\n");
         return;
     }
 
