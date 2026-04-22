@@ -1,4 +1,7 @@
 #include "app.h"
+#include "buttons.h"
+#include "colors.h"
+#include "mouse.h"
 
 #define DEV_MODE 1 // Set to 1 to enable dev mode features (e.g., using local asset/config paths)
 
@@ -197,12 +200,12 @@ void update() {
 }
 
 void render() {
-    SDL_SetRenderDrawColor(renderer, 245, 245, 245, 255);
+    SDL_SetRenderDrawColorStruct(renderer, BACKGROUND_COLOR);
     SDL_RenderClear(renderer);
 
     if (is_drawing_selection_rect || is_dragging_selection_rect || (current_rect.w != 0 && current_rect.h != 0)) {
         // Draw the outline (Bright Blue)
-        SDL_SetRenderDrawColor(renderer, 0, 200, 255, 255);
+        SDL_SetRenderDrawColorStruct(renderer, COLOR_SEMI_TRANSPARENT_BLUE);
         SDL_RenderRect(renderer, &current_rect);
 
         if (!is_drawing_selection_rect && !is_dragging_selection_rect) {

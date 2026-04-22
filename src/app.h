@@ -6,11 +6,9 @@ The header file for all the global variables and functions
 #define APP_H
 
 #include <stdio.h>
+
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
-
-#include "mouse.h"
-#include "buttons.h"
 
 // helper macro to set draw color using SDL_Color struct
 #define SDL_SetRenderDrawColorStruct(renderer, color) SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
