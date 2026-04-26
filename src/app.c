@@ -335,6 +335,7 @@ void render() {
 }
 
 void cut_image() {
+    if (compare_frects(current_rect, image_rect)) return;
     if (current_rect.w <= 0 || current_rect.h <= 0) return;
 
     // If the current_rect is partially outside the image_rect, we need to adjust it and also calculate the corresponding source rect for cropping

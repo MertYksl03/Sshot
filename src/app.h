@@ -23,6 +23,11 @@ enum {
     // TODO: Add more specific error codes later (e.g., APP_ERROR_WINDOW_INIT, APP_ERROR_ASSET_LOAD, etc.)
 };
 
+
+bool compare_frects(SDL_FRect a, SDL_FRect b) {
+    return (a.x == b.x) && (a.y == b.y) && (a.w == b.w) && (a.h == b.h);
+}
+
 // Function prototypes
 int APP_INIT();
 int APP_RUN(void);
