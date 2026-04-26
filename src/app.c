@@ -211,8 +211,6 @@ void on_save_button_click(ButtonType type) {
         return;
     }
 
-    // cut_display_texture();
-    // cut_image_surface();
     crop_image(); // This will cut both the texture and the surface to the selection_rect
 
     if (IMG_SavePNG(original_surface, save_path) != true) {
