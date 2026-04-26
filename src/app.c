@@ -3,7 +3,10 @@
 #include "colors.h"
 #include "mouse.h"
 #include "undo.h"
+
 #include "wayland/take_ss.h"
+
+#include "third-parties/tinyfiledialogs.h"
 
 #define DEV_MODE 1 // Set to 1 to enable dev mode features (e.g., using local asset/config paths)
 
@@ -27,16 +30,17 @@ int window_height = 0;
 bool is_running = true;
 SDL_Event event;
 
-SDL_FRect current_rect = {0, 0, 0, 0}; // To store the current selection rectangle
+SDL_FRect selection_rect = {0, 0, 0, 0}; // To store the current selection rectangle
 
 Button *save_button;
 Button *copy_button;
 Button *fullscreen_button;
 int fscreen_button_spacing = 20; // Spacing between buttons
 
-SDL_Texture *image_tex = NULL;
+SDL_Surface* original_surface = NULL; 
+SDL_Texture *display_texture = NULL;
 SDL_FRect image_rect = {0, 0, 0, 0}; // To store the position and size of the loaded image
-float image_tex_width, image_tex_height; 
+float display_texture_width, display_texture_height; 
 float zoom_sens = 0.05; // Sensitivity for zooming in/out the image
 
 
@@ -47,16 +51,17 @@ float start_x, start_y;
 
 // Local function prototypes
 bool initialize_window();
-bool process_input(SDL_Event *event, Button *buttons[]);
+void process_input(SDL_Event *event, Button *buttons[]);
 void update();
 void render();
 bool load_assets();
 void func1(ButtonType type); // Placeholder for button click functions
 void on_fullscreen_button_click(ButtonType type);
+void on_save_button_click(ButtonType type);
 void handle_window_resize();
 void zoomin_image();
 void zoomout_image();
-void cut_image();
+void crop_image();
 
 // Global functions (ALL CAPS)
 int APP_INIT(void){
@@ -71,29 +76,33 @@ int APP_INIT(void){
     // get window size
     SDL_GetWindowSizeInPixels(window, &window_width, &window_height);
 
-    SDL_Surface* image_surface = IMG_Load(ss_filepath);
+    original_surface = IMG_Load(ss_filepath);
 
-    if (image_surface == NULL) {
+    if (original_surface == NULL) {
         fprintf(stderr, "Error loading image: %s\n", SDL_GetError());
         return APP_ERROR_INIT;
     }
 
-    image_tex = SDL_CreateTextureFromSurface(renderer, image_surface);
+    display_texture = SDL_CreateTextureFromSurface(renderer, original_surface);
 
-    if (image_tex == NULL) {
+    if (display_texture == NULL) {
         fprintf(stderr, "Error creating texture from surface: %s\n", SDL_GetError());
-        SDL_DestroySurface(image_surface);
+        SDL_DestroySurface(original_surface);
         return APP_ERROR_INIT;
     }
 
-    image_rect.w = (float)image_surface->w; // Set initial width of the image
-    image_rect.h = (float)image_surface->h; // Set initial height of the image
+    image_rect.w = (float)original_surface->w; // Set initial width of the image
+    image_rect.h = (float)original_surface->h; // Set initial height of the image
+    printf("Loaded image with dimensions: %.0fx%.0f\n", image_rect.w, image_rect.h);
 
-    SDL_GetTextureSize(image_tex, &image_tex_width, &image_tex_height);
+    SDL_GetTextureSize(display_texture, &display_texture_width, &display_texture_height);
     
-    SDL_DestroySurface(image_surface);
-    SDL_SetTextureScaleMode(image_tex, SDL_SCALEMODE_LINEAR);
-    
+    SDL_SetTextureScaleMode(display_texture, SDL_SCALEMODE_LINEAR);
+
+
+    // Everything is initialized successfully
+    is_running = true;
+
     return APP_SUCCESS;
 
     
@@ -107,7 +116,7 @@ int APP_RUN(void) {
     fullscreen_button = create_button(renderer, FULLSCREEN, ASSET_PATH "fullscreen_icon.svg", 0, 0, DEFAULT_BUTTON_SIZE);
 
     // Bind buttons to functions
-    bind_button_to_function(save_button, func1);
+    bind_button_to_function(save_button, on_save_button_click);
     bind_button_to_function(copy_button, func1);
     bind_button_to_function(fullscreen_button, on_fullscreen_button_click);
 
@@ -119,7 +128,7 @@ int APP_RUN(void) {
 
     // Main loop
     while (is_running) {
-        is_running = process_input(&event, buttons);
+        process_input(&event, buttons);
         update();
         render();
     }
@@ -133,11 +142,14 @@ void APP_QUIT() {
     destroy_button(fullscreen_button);
 
     // Free loaded image
-    if (image_tex) {
-        SDL_DestroyTexture(image_tex);
-        image_tex = NULL;
+    if (display_texture) {
+        SDL_DestroyTexture(display_texture);
+        display_texture = NULL;
     }
-
+    if (original_surface) {
+        SDL_DestroySurface(original_surface);
+        original_surface = NULL;
+    }
     // Free undo stack
     free_undo_stack();
     
@@ -168,7 +180,49 @@ void func1(ButtonType type) {
 
 void on_fullscreen_button_click(ButtonType type) {
     // Make the current rect as the same as the image rect
-    current_rect = image_rect; 
+    selection_rect = image_rect; 
+}
+
+const char* get_save_path_from_user() {
+    const char *filterPatterns[4] = { "*.png", "*.jpg", "*.bmp" , "*.jpeg"};
+
+    // get the time as the name of the file
+    time_t now = time(NULL);
+    struct tm *t = localtime(&now);
+    char defaultFilename[128];
+    strftime(defaultFilename, sizeof(defaultFilename), "~/Pictures/Screenshots/screenshot_%Y-%m-%d_%H-%M-%S.png", t);
+
+
+    const char *save_path = tinyfd_saveFileDialog(
+        "Save Image",           // title
+        defaultFilename,        // default filename (can include a path)
+        4,                      // number of filters
+        filterPatterns,         // filter array
+        "Image Files"           // filter description (or NULL)
+    );
+
+    return save_path; // Cast to non-const for easier handling, but be careful with this in real code
+}
+
+void on_save_button_click(ButtonType type) {
+    const char* save_path = get_save_path_from_user();
+    if (save_path == NULL) {
+        printf("Save cancelled by user.\n");
+        return;
+    }
+
+    // cut_display_texture();
+    // cut_image_surface();
+    crop_image(); // This will cut both the texture and the surface to the selection_rect
+
+    if (IMG_SavePNG(original_surface, save_path) != true) {
+        fprintf(stderr, "Error saving image: %s\n", SDL_GetError());
+        SDL_DestroySurface(original_surface);
+    } else {
+        printf("Image saved successfully to %s\n", save_path);
+        SDL_DestroySurface(original_surface);
+        is_running = false;
+    }
 }
 
 bool initialize_window() {
@@ -195,14 +249,14 @@ bool initialize_window() {
 }
 
 
-bool process_input(SDL_Event *event, Button *buttons[]) {
+void process_input(SDL_Event *event, Button *buttons[]) {
     while (SDL_PollEvent(event))
         {
             switch (event->type)
             {
               case SDL_EVENT_QUIT:
-                    return false;
-                    break;
+                    is_running = false;
+                    return;
                 case SDL_EVENT_KEY_UP:
                     break;
                 case SDL_EVENT_KEY_DOWN:
@@ -212,10 +266,11 @@ bool process_input(SDL_Event *event, Button *buttons[]) {
                     bool ctrl = (mod & SDL_KMOD_CTRL) != 0;
 
                     if (key == SDLK_ESCAPE || key == SDLK_Q) {
-                        return false;
+                        is_running = false;
+                        return;
                     }
                     if (ctrl && key == SDLK_Z) {
-                        undo(renderer, &image_tex, &image_rect, &image_tex_width, &image_tex_height);
+                        undo(renderer, &original_surface, &display_texture, &image_rect, &display_texture_width, &display_texture_height);
                     }
                     if (ctrl && key == SDLK_C){
                         //TODO: Implement copy functionality
@@ -223,24 +278,24 @@ bool process_input(SDL_Event *event, Button *buttons[]) {
 
                 case SDL_EVENT_MOUSE_BUTTON_DOWN:
                 if (event->button.button == SDL_BUTTON_LEFT) {
-                    mouse_left_button_down(event, &is_drawing_selection_rect, &is_dragging_selection_rect, &start_x, &start_y, &current_rect, buttons);
+                    mouse_left_button_down(event, &is_drawing_selection_rect, &is_dragging_selection_rect, &start_x, &start_y, &selection_rect, buttons);
                 }
                 break;
 
             case SDL_EVENT_MOUSE_MOTION:
                 if (is_drawing_selection_rect || is_dragging_selection_rect) {
                     // Calculate width/height based on current mouse pos
-                    mouse_motion(event, &is_drawing_selection_rect, &is_dragging_selection_rect, &start_x, &start_y, &current_rect);
+                    mouse_motion(event, &is_drawing_selection_rect, &is_dragging_selection_rect, &start_x, &start_y, &selection_rect);
                 }
                 break;
 
             case SDL_EVENT_MOUSE_BUTTON_UP:
                 if (event->button.button == SDL_BUTTON_LEFT) {
-                    mouse_left_button_up(event, &is_drawing_selection_rect, &is_dragging_selection_rect, &start_x, &start_y, &current_rect, &save_button->rect, &copy_button->rect);
+                    mouse_left_button_up(event, &is_drawing_selection_rect, &is_dragging_selection_rect, &start_x, &start_y, &selection_rect, &save_button->rect, &copy_button->rect);
                 }
                 if (event->button.button == SDL_BUTTON_RIGHT) {
                     // for now
-                    cut_image();
+                    crop_image(); // Cut the image to the selection_rect when right-clicking (for testing purposes, can change this later)
                 }
                 break;
             
@@ -283,7 +338,7 @@ bool process_input(SDL_Event *event, Button *buttons[]) {
             }
         }
 
-    return true;
+    return;
 }
 
 void update() {
@@ -295,24 +350,24 @@ void render() {
     SDL_RenderClear(renderer);
     
     // Render the loaded image
-    if (image_tex) {
-        SDL_RenderTexture(renderer, image_tex, NULL, &image_rect);
+    if (display_texture) {
+        SDL_RenderTexture(renderer, display_texture, NULL, &image_rect);
     }
 
     // Draw selection rectangle
-    if (is_drawing_selection_rect || is_dragging_selection_rect || (current_rect.w != 0 && current_rect.h != 0)) {
+    if (is_drawing_selection_rect || is_dragging_selection_rect || (selection_rect.w != 0 && selection_rect.h != 0)) {
         // Draw the outline
         SDL_SetRenderDrawColorStruct(renderer, COLOR_SEMI_TRANSPARENT_BLUE);
-        SDL_RenderRect(renderer, &current_rect);
+        SDL_RenderRect(renderer, &selection_rect);
     }
 
-    // Calculate button positions based on current_rect
-    if (current_rect.w != 0 && current_rect.h != 0) {
+    // Calculate button positions based on selection_rect
+    if (selection_rect.w != 0 && selection_rect.h != 0) {
         // Position the buttons near the selection rectangle
-        copy_button->rect.x = current_rect.x + current_rect.w - copy_button->rect.w; 
-        copy_button->rect.y = current_rect.y + current_rect.h + 5; // 5 pixels below the rectangle
-        save_button->rect.x = current_rect.x + current_rect.w - save_button->rect.w - copy_button->rect.w - 5; // 5 pixels to the left of the copy button
-        save_button->rect.y = current_rect.y + current_rect.h + 5; // 5 pixels below the rectangle
+        copy_button->rect.x = selection_rect.x + selection_rect.w - copy_button->rect.w; 
+        copy_button->rect.y = selection_rect.y + selection_rect.h + 5; // 5 pixels below the rectangle
+        save_button->rect.x = selection_rect.x + selection_rect.w - save_button->rect.w - copy_button->rect.w - 5; // 5 pixels to the left of the copy button
+        save_button->rect.y = selection_rect.y + selection_rect.h + 5; // 5 pixels below the rectangle
     } else {
         // If there is no selection rectangle yet, position the buttons at the bottom right corner
         copy_button->rect.x = window_width - copy_button->rect.w;
@@ -334,78 +389,58 @@ void render() {
     return;
 }
 
-void cut_image() {
-    if (compare_frects(current_rect, image_rect)) return;
-    if (current_rect.w <= 0 || current_rect.h <= 0) return;
+void crop_image() {
+    if (compare_frects(selection_rect, image_rect)) return;
+    if (selection_rect.w <= 0 || selection_rect.h <= 0) return;
 
-    // If the current_rect is partially outside the image_rect, we need to adjust it and also calculate the corresponding source rect for cropping
-    if (current_rect.x < image_rect.x) {
-        current_rect.w -= (image_rect.x - current_rect.x);
-        current_rect.x = image_rect.x;
-    }
+     // Compute how much of the surface each logical pixel represents
+    float scale_x = (float)original_surface->w / image_rect.w;
+    float scale_y = (float)original_surface->h / image_rect.h;
 
-    if (current_rect.y < image_rect.y) {
-        current_rect.h -= (image_rect.y - current_rect.y);
-        current_rect.y = image_rect.y;
-    }
+    // selection_rect is relative to the window, make it relative to image_rect
+    float rel_x = selection_rect.x - image_rect.x;
+    float rel_y = selection_rect.y - image_rect.y;
 
-    if (current_rect.x + current_rect.w > image_rect.x + image_rect.w) {
-        current_rect.w = (image_rect.x + image_rect.w) - current_rect.x;
-    }
-
-    if (current_rect.y + current_rect.h > image_rect.y + image_rect.h) {
-        current_rect.h = (image_rect.y + image_rect.h) - current_rect.y;
-    }
-
-    // Convert current_rect from screen coords to texture coords
-    float scale_x = image_tex_width / image_rect.w;
-    float scale_y = image_tex_height / image_rect.h;
-
-    SDL_FRect src = {
-        (current_rect.x - image_rect.x) * scale_x,
-        (current_rect.y - image_rect.y) * scale_y,
-        current_rect.w * scale_x,
-        current_rect.h * scale_y
+    // Map selection into surface space
+    SDL_Rect surface_crop = {
+        .x = (int)(rel_x * scale_x),
+        .y = (int)(rel_y * scale_y),
+        .w = (int)(selection_rect.w * scale_x),
+        .h = (int)(selection_rect.h * scale_y),
     };
 
-    SDL_Texture* cropped_tex = SDL_CreateTexture(
-        renderer,
-        SDL_PIXELFORMAT_RGBA8888,
-        SDL_TEXTUREACCESS_TARGET,
-        (int)src.w,
-        (int)src.h
+    // Clamp to surface bounds
+    if (surface_crop.x < 0) surface_crop.x = 0;
+    if (surface_crop.y < 0) surface_crop.y = 0;
+    if (surface_crop.x + surface_crop.w > original_surface->w)
+        surface_crop.w = original_surface->w - surface_crop.x;
+    if (surface_crop.y + surface_crop.h > original_surface->h)
+        surface_crop.h = original_surface->h - surface_crop.y;
+
+    // Cut the surface
+    SDL_Surface *cropped = SDL_CreateSurface(
+        surface_crop.w, surface_crop.h,
+        original_surface->format
     );
 
-    if (!cropped_tex) {
-        printf("Failed to create cropped texture: %s\n", SDL_GetError());
-        return;
-    }
+    SDL_BlitSurface(original_surface, &surface_crop, cropped, NULL);
 
-    SDL_Texture* prev_target = SDL_GetRenderTarget(renderer);
+    push_undo_state(renderer, original_surface, display_texture, image_rect, display_texture_width, display_texture_height);
 
-    SDL_SetRenderTarget(renderer, cropped_tex);
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
-    SDL_RenderClear(renderer);
+    // Replace original surface and rebuild texture
+    SDL_DestroySurface(original_surface);
+    original_surface = cropped;
 
-    SDL_FRect dst = { 0, 0, src.w, src.h };
-    SDL_RenderTexture(renderer, image_tex, &src, &dst);  // <-- src, not current_rect
+    SDL_DestroyTexture(display_texture);
+    display_texture = SDL_CreateTextureFromSurface(renderer, original_surface);
 
-    SDL_SetRenderTarget(renderer, prev_target);
-
-    push_undo_state(renderer, image_tex, image_rect, image_tex_width, image_tex_height);
-    SDL_DestroyTexture(image_tex);
-    image_tex = cropped_tex;
-
-    image_tex_width = src.w;
-    image_tex_height = src.h;
-
-    image_rect.w = current_rect.w;
-    image_rect.h = current_rect.h;
+    // Reset image_rect to match new texture dimensions
+    image_rect.w = (float)original_surface->w / scale_x;
+    image_rect.h = (float)original_surface->h / scale_y;
     image_rect.x = (window_width - image_rect.w) / 2;
     image_rect.y = (window_height - image_rect.h) / 2;
 
-    // current_rect = (SDL_FRect){ 0, 0, 0, 0 };
-    current_rect = image_rect; // Set current_rect to the new image_rect after cutting
+    selection_rect = image_rect; // Set selection_rect to the new image_rect after cutting
 }
 
 // load and create textures, initialize variables, etc.
