@@ -44,22 +44,32 @@ Button *create_button(SDL_Renderer* renderer, ButtonType type, const char* svg_p
     return btn;
 }
 
-void render_button(SDL_Renderer* renderer, Button* button) {
+
+void render_button(SDL_Renderer* renderer, Button* button, SDL_Color color) {
     if (!button->texture) {
         printf("Button texture is NULL, cannot render\n");
         return;
     }
-    // Create a tinted texture for hover effect by rendering the original texture with a colored rectangle behind it
-    // SDL_FRect tmp_rect = {(int)button->rect.x, (int)button->rect.y, (int)button->rect.w, (int)button->rect.h};
-    // SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 120);
-    // SDL_RenderFillRect(renderer, &tmp_rect);
 
+    SDL_SetTextureBlendMode(button->texture, SDL_BLENDMODE_BLEND);
+    if (button->is_hovered) {
+        // Apply a simple hover effect by modulating the texture color
+        SDL_SetTextureColorMod(button->texture, color.r, color.g, color.b);
+    } else {
+        SDL_SetTextureColorMod(button->texture, 255, 255, 255); // Original color
+    }
     SDL_RenderTexture(renderer, button->texture, NULL, &button->rect);
 }
 
 bool is_button_hovered(Button* button, int mouse_x, int mouse_y) {
     return (mouse_x >= button->rect.x && mouse_x <= button->rect.x + button->rect.w &&
             mouse_y >= button->rect.y && mouse_y <= button->rect.y + button->rect.h);
+}
+
+void handle_button_hover(Button* buttons[], int button_count, int mouse_x, int mouse_y) {
+    for (int i = 0; i < button_count; i++) {
+        buttons[i]->is_hovered = is_button_hovered(buttons[i], mouse_x, mouse_y);
+    }
 }
 
 void destroy_button(Button* button) {
@@ -70,6 +80,6 @@ void destroy_button(Button* button) {
     free(button);
 }
 
-void bind_button_to_function(Button* button, void (*on_click)(ButtonType type)) {
+void bind_button_to_function(Button* button, void (*on_click)()) {
     button->on_click = on_click;
 }

@@ -23,6 +23,7 @@
 #define DEFAULT_WINDOW_WIDTH 800
 #define DEFAULT_WINDOW_HEIGHT 600
 #define DEFAULT_BUTTON_SIZE 20
+#define BUTTON_COUNT 3
 
 int current_session;
 
@@ -52,16 +53,18 @@ bool is_dragging_selection_rect = false;
 bool is_mouse_over_buttons = false;
 float start_x, start_y;
 
+Button *all_buttons[BUTTON_COUNT];
+
 // Local function prototypes
 bool initialize_window();
 void process_input(SDL_Event *event, Button *buttons[]);
 void update();
 void render();
 bool load_assets();
-void func1(ButtonType type); // Placeholder for button click functions
-void on_fullscreen_button_click(ButtonType type);
-void on_save_button_click(ButtonType type);
-void on_copy_button_click(ButtonType type);
+void on_fullscreen_button_click();
+void on_save_button_click();
+void copy_image_to_clipboard();
+void on_copy_button_click();
 void handle_window_resize();
 void zoomin_image();
 void zoomout_image();
@@ -115,16 +118,6 @@ int APP_INIT(void){
     
     SDL_SetTextureScaleMode(display_texture, SDL_SCALEMODE_LINEAR);
 
-    // Everything is initialized successfully
-    is_running = true;
-
-    return APP_SUCCESS;
-
-    
-}
-
-int APP_RUN(void) {
-
     // Create buttons
     save_button = create_button(renderer, SAVE, ASSET_PATH "save_icon.svg", 0, 0, DEFAULT_BUTTON_SIZE);
     copy_button = create_button(renderer, COPY, ASSET_PATH "copy_icon.svg", 0, 0, DEFAULT_BUTTON_SIZE);
@@ -139,11 +132,22 @@ int APP_RUN(void) {
     fullscreen_button->rect.x = window_width - DEFAULT_BUTTON_SIZE - fscreen_button_spacing;
     fullscreen_button->rect.y = fscreen_button_spacing;
 
-    Button *buttons[] = {save_button, copy_button, fullscreen_button};
+    for (int i = 0; i < BUTTON_COUNT; i++) {
+        all_buttons[i] = (i == 0) ? save_button : (i == 1) ? copy_button : fullscreen_button;
+    }
 
+    // Everything is initialized successfully
+    is_running = true;
+
+    return APP_SUCCESS;
+
+    
+}
+
+int APP_RUN(void) {
     // Main loop
     while (is_running) {
-        process_input(&event, buttons);
+        process_input(&event, all_buttons);
         update();
         render();
     }
@@ -174,7 +178,7 @@ void APP_QUIT() {
     SDL_Quit();
 }
 
-void on_fullscreen_button_click(ButtonType type) {
+void on_fullscreen_button_click() {
     // Make the current rect as the same as the image rect
     selection_rect = image_rect; 
 }
@@ -210,7 +214,7 @@ bool save_image(SDL_Surface *surface, const char *path) {
     }
 }
 
-void on_save_button_click(ButtonType type) {
+void on_save_button_click() {
     const char* save_path = get_save_path_from_user();
     if (save_path == NULL) {
         printf("Save cancelled by user.\n");
@@ -228,22 +232,22 @@ void on_save_button_click(ButtonType type) {
     }
 }
 
-void on_copy_button_click(ButtonType type) {
+void copy_image_to_clipboard() {
     // Crop the image
     // save the image to a temporary location 
     // copy the image to clipboard using xclip or wl-copy depending on the session type
-
+    
     crop_image(); 
-
+    
     char* ss_clipboard_filepath = "/tmp/sshot_clipboard.png"; // Temporary file path for the cropped image
-
+    
     if (save_image(original_surface, ss_clipboard_filepath) != true) {
         fprintf(stderr, "Error saving image for clipboard: %s\n", SDL_GetError());
         return;
     } else {
         printf("Image saved successfully to %s for clipboard copying\n", ss_clipboard_filepath);
     }
-
+    
     if (current_session == WAYLAND) {
         // Use wl-copy to copy the image to clipboard
         if (system("cat /tmp/sshot_clipboard.png | wl-copy --type image/png") != 0) {
@@ -259,8 +263,12 @@ void on_copy_button_click(ButtonType type) {
             printf("Image copied to clipboard successfully using xclip\n");
         }
     }
-
+    
     is_running = false; // Exit the application after copying to clipboard
+}
+
+void on_copy_button_click() {
+    copy_image_to_clipboard();
 }
 
 bool initialize_window() {
@@ -312,7 +320,7 @@ void process_input(SDL_Event *event, Button *buttons[]) {
                         selection_rect = image_rect; // Set selection_rect to the new image_rect after undoing
                     }
                     if (ctrl && key == SDLK_C){
-                        //TODO: Implement copy functionality
+                        copy_image_to_clipboard();
                     }
 
                 case SDL_EVENT_MOUSE_BUTTON_DOWN:
@@ -333,7 +341,6 @@ void process_input(SDL_Event *event, Button *buttons[]) {
                     mouse_left_button_up(event, &is_drawing_selection_rect, &is_dragging_selection_rect, &start_x, &start_y, &selection_rect, &save_button->rect, &copy_button->rect);
                 }
                 if (event->button.button == SDL_BUTTON_RIGHT) {
-                    // for now
                     crop_image(); // Cut the image to the selection_rect when right-clicking (for testing purposes, can change this later)
                 }
                 break;
@@ -381,6 +388,9 @@ void process_input(SDL_Event *event, Button *buttons[]) {
 }
 
 void update() {
+    float mouse_x, mouse_y;
+    SDL_GetMouseState(&mouse_x, &mouse_y);
+    handle_button_hover(all_buttons, BUTTON_COUNT, mouse_x, mouse_y);
     return;
 }
 
@@ -402,10 +412,10 @@ void render() {
 
     // Calculate button positions based on selection_rect
     if (selection_rect.w != 0 && selection_rect.h != 0) {
-        // Position the buttons near the selection rectangle
-        copy_button->rect.x = selection_rect.x + selection_rect.w - copy_button->rect.w; 
+        // Position the buttons at the center and below of selection rectangle
+        copy_button->rect.x = selection_rect.x + selection_rect.w / 2 - copy_button->rect.w; 
         copy_button->rect.y = selection_rect.y + selection_rect.h + 5; // 5 pixels below the rectangle
-        save_button->rect.x = selection_rect.x + selection_rect.w - save_button->rect.w - copy_button->rect.w - 5; // 5 pixels to the left of the copy button
+        save_button->rect.x = selection_rect.x + selection_rect.w / 2 - save_button->rect.w - copy_button->rect.w - 5; // 5 pixels to the left of the copy button
         save_button->rect.y = selection_rect.y + selection_rect.h + 5; // 5 pixels below the rectangle
     } else {
         // If there is no selection rectangle yet, position the buttons at the bottom right corner
@@ -416,13 +426,9 @@ void render() {
 
     }
     // Draw buttons
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    render_button(renderer, save_button);
-    render_button(renderer, copy_button);
-
-    //Render fullscreen button always
-    render_button(renderer, fullscreen_button);
-
+    for (int i = 0; i < BUTTON_COUNT; i++) {
+        render_button(renderer, all_buttons[i], COLOR_BUTTON_HOVER);
+    }
     // Present the rendered frame to the screen
     SDL_RenderPresent(renderer);
     return;
