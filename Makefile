@@ -1,6 +1,6 @@
 CC = gcc
-CFLAGS = -Wall -Werror -g -std=c99 $(shell pkg-config --cflags gio-2.0)
-LIBS = -lSDL3 -lSDL3_image -lm $(shell pkg-config --libs gio-2.0)
+CFLAGS = -Wall -Werror -g -std=c99 $(shell pkg-config --cflags gio-2.0) -Wno-unused-variable
+LIBS = -lSDL3 -lSDL3_image -lm $(shell pkg-config --libs gio-2.0) -lX11
 SRC_DIR = src
 OBJ_DIR = obj
 OUT = out

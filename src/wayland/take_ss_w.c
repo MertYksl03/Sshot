@@ -1,4 +1,5 @@
-#include "take_ss.h"
+#include "take_ss_w.h"
+
 #include <string.h>
 
 GMainLoop *loop;
@@ -54,16 +55,26 @@ void filepath_copy(char* dest, const char* src) {
     dest[path_len] = '\0';
 }
 
-char* take_ss_wayland() {
+void take_ss() {
     GDBusConnection *conn;
     GError *error = NULL;
     GVariant *result;
-    gchar *request_path;
 
     conn = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, &error);
     loop = g_main_loop_new(NULL, FALSE);
 
-    // 1. Call Screenshot
+    // Subscribe with NULL path — catches Response on ANY request object
+    g_dbus_connection_signal_subscribe(
+        conn,
+        NULL,                                   // Any sender
+        "org.freedesktop.portal.Request",
+        "Response",
+        NULL,                                   // Any object path
+        NULL,
+        G_DBUS_SIGNAL_FLAGS_NONE,
+        on_portal_response,
+        NULL, NULL);
+
     result = g_dbus_connection_call_sync(
         conn, "org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop",
         "org.freedesktop.portal.Screenshot", "Screenshot",
@@ -72,35 +83,32 @@ char* take_ss_wayland() {
 
     if (error) {
         fprintf(stderr, "Call Failed: %s\n", error->message);
-        return NULL;
+        g_main_loop_quit(loop);
+        return;
     }
-
-    g_variant_get(result, "(&o)", &request_path);
-
-    // 2. Subscribe to the 'Response' signal on the path returned
-    g_dbus_connection_signal_subscribe(
-        conn,
-        "org.freedesktop.portal.Desktop",       // Sender
-        "org.freedesktop.portal.Request",       // Interface
-        "Response",                             // Signal Name
-        request_path,                           // Object Path (the one we just got)
-        NULL,
-        G_DBUS_SIGNAL_FLAGS_NONE,
-        on_portal_response,
-        NULL, NULL);
 
     printf("Waiting for user to take screenshot...\n");
     g_variant_unref(result);
 
-    // 3. Run the loop to wait for the signal
     g_main_loop_run(loop);
-
     g_object_unref(conn);
 
-    // check if ss_filepath is empty
     if (ss_filepath[0] == '\0') {
         printf("No screenshot taken or an error occurred.\n");
+    }
+}
+
+SDL_Surface* take_ss_wayland() {
+    take_ss();
+    // check if ss_filepath is empty
+    if (ss_filepath[0] == '\0') {
+        return NULL; // No screenshot taken or an error occurred
+    }
+
+    SDL_Surface* surface = IMG_Load(ss_filepath);
+    if (surface == NULL) {
+        fprintf(stderr, "Error loading screenshot image: %s\n", SDL_GetError());
         return NULL;
     }
-    return ss_filepath;
+    return surface;
 }

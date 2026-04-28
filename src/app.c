@@ -4,7 +4,8 @@
 #include "mouse.h"
 #include "undo.h"
 
-#include "wayland/take_ss.h"
+#include "wayland/take_ss_w.h"
+#include "X11/take_ss_x.h"
 
 #include "third-parties/tinyfiledialogs.h"
 
@@ -22,6 +23,8 @@
 #define DEFAULT_WINDOW_WIDTH 800
 #define DEFAULT_WINDOW_HEIGHT 600
 #define DEFAULT_BUTTON_SIZE 20
+
+int current_session;
 
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
@@ -58,15 +61,36 @@ bool load_assets();
 void func1(ButtonType type); // Placeholder for button click functions
 void on_fullscreen_button_click(ButtonType type);
 void on_save_button_click(ButtonType type);
+void on_copy_button_click(ButtonType type);
 void handle_window_resize();
 void zoomin_image();
 void zoomout_image();
 void crop_image();
 
+
+int get_session() {
+    return getenv("WAYLAND_DISPLAY") != NULL ? WAYLAND : X11;
+}
+
+
 // Global functions (ALL CAPS)
 int APP_INIT(void){
-    // Take screenshot first
-    char *ss_filepath = take_ss_wayland();
+    // Get the current session type first
+    current_session = get_session();
+
+    // Take screenshot according to the session type and store the file path in a global variable
+    if (current_session == WAYLAND) {
+        original_surface = take_ss_wayland();
+    } else {
+        original_surface = take_ss_x11();
+    }
+
+    if (original_surface == NULL) {
+        fprintf(stderr, "Error loading image: %s\n", SDL_GetError());
+        return APP_ERROR_INIT;
+    }
+
+    // Initialize SDL, create window and renderer
     if (!initialize_window()) {
         return APP_ERROR_INIT; 
     }
@@ -75,13 +99,6 @@ int APP_INIT(void){
     SDL_SyncWindow(window);  // Wait for Wayland compositor to configure the window
     // get window size
     SDL_GetWindowSizeInPixels(window, &window_width, &window_height);
-
-    original_surface = IMG_Load(ss_filepath);
-
-    if (original_surface == NULL) {
-        fprintf(stderr, "Error loading image: %s\n", SDL_GetError());
-        return APP_ERROR_INIT;
-    }
 
     display_texture = SDL_CreateTextureFromSurface(renderer, original_surface);
 
@@ -93,12 +110,10 @@ int APP_INIT(void){
 
     image_rect.w = (float)original_surface->w; // Set initial width of the image
     image_rect.h = (float)original_surface->h; // Set initial height of the image
-    printf("Loaded image with dimensions: %.0fx%.0f\n", image_rect.w, image_rect.h);
 
     SDL_GetTextureSize(display_texture, &display_texture_width, &display_texture_height);
     
     SDL_SetTextureScaleMode(display_texture, SDL_SCALEMODE_LINEAR);
-
 
     // Everything is initialized successfully
     is_running = true;
@@ -117,7 +132,7 @@ int APP_RUN(void) {
 
     // Bind buttons to functions
     bind_button_to_function(save_button, on_save_button_click);
-    bind_button_to_function(copy_button, func1);
+    bind_button_to_function(copy_button, on_copy_button_click);
     bind_button_to_function(fullscreen_button, on_fullscreen_button_click);
 
     // Top right corner for fullscreen button
@@ -159,25 +174,6 @@ void APP_QUIT() {
     SDL_Quit();
 }
 
-void func1(ButtonType type) {
-    // Placeholder for a function that will be called when a button is clicked
-    switch (type)
-    {
-    case SAVE:
-        printf("Save button clicked!\n");
-        break;
-    case COPY:
-        printf("Copy button clicked!\n");
-        break;
-    // case FULLSCREEN:
-    //     printf("Fullscreen button clicked!\n");
-    //     break;
-    default:
-        printf("Button of type %d clicked!\n", type);
-        break;
-    }
-}
-
 void on_fullscreen_button_click(ButtonType type) {
     // Make the current rect as the same as the image rect
     selection_rect = image_rect; 
@@ -204,6 +200,16 @@ const char* get_save_path_from_user() {
     return save_path; // Cast to non-const for easier handling, but be careful with this in real code
 }
 
+bool save_image(SDL_Surface *surface, const char *path) {
+    if (IMG_SavePNG(surface, path) != true) {
+        fprintf(stderr, "Error saving image: %s\n", SDL_GetError());
+        return false;
+    } else {
+        printf("Image saved successfully to %s\n", path);
+        return true;
+    }
+}
+
 void on_save_button_click(ButtonType type) {
     const char* save_path = get_save_path_from_user();
     if (save_path == NULL) {
@@ -213,14 +219,48 @@ void on_save_button_click(ButtonType type) {
 
     crop_image(); // This will cut both the texture and the surface to the selection_rect
 
-    if (IMG_SavePNG(original_surface, save_path) != true) {
+    if (save_image(original_surface, save_path) != true) {
         fprintf(stderr, "Error saving image: %s\n", SDL_GetError());
-        SDL_DestroySurface(original_surface);
+        SDL_DestroySurface(original_surface); // There is something wrong with this. 
     } else {
         printf("Image saved successfully to %s\n", save_path);
-        SDL_DestroySurface(original_surface);
         is_running = false;
     }
+}
+
+void on_copy_button_click(ButtonType type) {
+    // Crop the image
+    // save the image to a temporary location 
+    // copy the image to clipboard using xclip or wl-copy depending on the session type
+
+    crop_image(); 
+
+    char* ss_clipboard_filepath = "/tmp/sshot_clipboard.png"; // Temporary file path for the cropped image
+
+    if (save_image(original_surface, ss_clipboard_filepath) != true) {
+        fprintf(stderr, "Error saving image for clipboard: %s\n", SDL_GetError());
+        return;
+    } else {
+        printf("Image saved successfully to %s for clipboard copying\n", ss_clipboard_filepath);
+    }
+
+    if (current_session == WAYLAND) {
+        // Use wl-copy to copy the image to clipboard
+        if (system("cat /tmp/sshot_clipboard.png | wl-copy --type image/png") != 0) {
+            fprintf(stderr, "Error copying image to clipboard with wl-copy\n");
+        } else {
+            printf("Image copied to clipboard successfully using wl-copy\n");
+        }
+    } else {
+        // Use xclip to copy the image to clipboard
+        if (system("xclip -selection clipboard -t image/png -i /tmp/sshot_clipboard.png") != 0) {
+            fprintf(stderr, "Error copying image to clipboard with xclip\n");
+        } else {
+            printf("Image copied to clipboard successfully using xclip\n");
+        }
+    }
+
+    is_running = false; // Exit the application after copying to clipboard
 }
 
 bool initialize_window() {
@@ -269,6 +309,7 @@ void process_input(SDL_Event *event, Button *buttons[]) {
                     }
                     if (ctrl && key == SDLK_Z) {
                         undo(renderer, &original_surface, &display_texture, &image_rect, &display_texture_width, &display_texture_height);
+                        selection_rect = image_rect; // Set selection_rect to the new image_rect after undoing
                     }
                     if (ctrl && key == SDLK_C){
                         //TODO: Implement copy functionality

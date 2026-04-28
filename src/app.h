@@ -6,6 +6,7 @@ The header file for all the global variables and functions
 #define APP_H
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
@@ -26,6 +27,10 @@ enum {
 };
 
 
+enum Session{
+    WAYLAND,
+    X11,
+};
 
 // Function prototypes
 int APP_INIT();
