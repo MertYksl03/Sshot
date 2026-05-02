@@ -5,6 +5,8 @@
 Minimalist screenshot tool
 </div>
 
+sShot is a minimalist screenshot tool written in C using the SDL3 library. It works on both Wayland and X11. It allows users to take screenshots of their entire screen or a selected area, save them in PNG format, and copy them to the clipboard. The application is designed to be simple, minimal and easy to use. 
+
 ## Preview
 ![sShot Preview](data/preview.gif)
 
