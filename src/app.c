@@ -411,7 +411,7 @@ void render() {
     }
 
     // Calculate button positions based on selection_rect
-    if (selection_rect.w != 0 && selection_rect.h != 0) {
+    if (selection_rect.w != 0 && selection_rect.h != 0 && !(selection_rect.w >= window_width || selection_rect.h >= window_height)) {
         // Position the buttons at the center and below of selection rectangle
         copy_button->rect.x = selection_rect.x + selection_rect.w / 2 - copy_button->rect.w; 
         copy_button->rect.y = selection_rect.y + selection_rect.h + 5; // 5 pixels below the rectangle
