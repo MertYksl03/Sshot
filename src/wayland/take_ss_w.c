@@ -22,10 +22,7 @@ static void on_portal_response(GDBusConnection *conn, const gchar *sender, const
         gchar *uri;
         if (g_variant_lookup(results, "uri", "&s", &uri)) {
             filepath_copy(ss_filepath, uri); // Store the URI in the global variable
-            printf("Screenshot saved at: %s\n", uri);
         }
-    } else {
-        printf("Screenshot cancelled by user (Response code: %u)\n", response);
     }
 
     g_variant_unref(results);
@@ -87,15 +84,11 @@ void take_ss() {
         return;
     }
 
-    printf("Waiting for user to take screenshot...\n");
     g_variant_unref(result);
 
     g_main_loop_run(loop);
     g_object_unref(conn);
 
-    if (ss_filepath[0] == '\0') {
-        printf("No screenshot taken or an error occurred.\n");
-    }
 }
 
 SDL_Surface* take_ss_wayland() {

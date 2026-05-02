@@ -4,7 +4,6 @@
 
 // Helper to load SVG at a specific size to ensure sharpness
 SDL_Texture* LoadSVG(SDL_Renderer* renderer, const char* file, int width, int height) {
-    printf("Loading SVG: %s\n", file);
     SDL_IOStream* io = SDL_IOFromFile(file, "rb");
     if (!io){
         printf("Failed to open SVG file: %s\n", SDL_GetError());
@@ -33,7 +32,6 @@ SDL_Texture* LoadSVG(SDL_Renderer* renderer, const char* file, int width, int he
 Button *create_button(SDL_Renderer* renderer, ButtonType type, const char* svg_path, int x, int y, int size) {
     Button *btn = malloc(sizeof(Button));
     if (!btn) {
-        printf("Failed to allocate memory for button\n");
         return NULL;
     }
     btn->type = type;
@@ -47,7 +45,6 @@ Button *create_button(SDL_Renderer* renderer, ButtonType type, const char* svg_p
 
 void render_button(SDL_Renderer* renderer, Button* button, SDL_Color color) {
     if (!button->texture) {
-        printf("Button texture is NULL, cannot render\n");
         return;
     }
 

@@ -9,13 +9,8 @@ void mouse_left_button_down(SDL_Event *event, bool *is_drawing, bool *is_draggin
     *is_dragging = false;
 
     // Check if the click is within the one of the buttons
-    printf("Mouse down at: {%f, %f}\n", event->button.x, event->button.y);
     for (int i = 0; i < BUTTON_TYPE_COUNT; i++) {
-        printf("Checking button {%f, %f, %f, %f}\n", buttons[i]->rect.x, buttons[i]->rect.y, buttons[i]->rect.w, buttons[i]->rect.h);
         if (is_button_hovered(buttons[i], event->button.x, event->button.y)) {
-            
-            printf("Mouse: {%f, %f}\n", event->button.x, event->button.y);
-            printf("Clicked on button {%f, %f, %f, %f}\n", buttons[i]->rect.x, buttons[i]->rect.y, buttons[i]->rect.w, buttons[i]->rect.h);
             // Clicked on a button, so don't start drawing a new rect
             *is_drawing = false;
             // Call the button's function
