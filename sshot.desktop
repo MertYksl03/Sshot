@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=sShot
+Comment=Minimalist screenshot tool
+Exec=/usr/bin/sshot
+Icon=/usr/share/sshot/icon.png
+Terminal=false
+Categories=Utility;Graphics;
