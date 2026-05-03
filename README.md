@@ -26,14 +26,18 @@ sShot is a minimalist screenshot tool written in C using the SDL3 library. It wo
 
 ## Installation
 1. Install dependencies:
-   #### On Debian/Ubuntu:
-        ```bash
-        sudo apt-get install libsdl3-dev libsdl3-image-dev libnotify-dev
-        ```
-   #### On Arch Linux:
-        ```bash
-        sudo pacman -S sdl3 sdl3_image libnotify
-        ```
+
+#### On Debian/Ubuntu:
+
+```bash
+sudo apt-get install libsdl3-dev libsdl3-image-dev libnotify-dev
+```
+#### On Arch Linux:
+
+```bash
+sudo pacman -S sdl3 sdl3_image libnotify
+```
+
 2. Clone the repository:
    ```bash
    git clone https://github.com/MertYksl03/sShot.git
