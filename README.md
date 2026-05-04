@@ -13,6 +13,7 @@ sShot is a minimalist screenshot tool written in C using the SDL3 library. It wo
 ## Index
 - [Features](#features)
 - [Installation](#installation)
+- [Building from source](#building-from-source)
 - [Usage](#usage)
 - [Contributing](#contributing)
 - [License](#license)
@@ -25,24 +26,26 @@ sShot is a minimalist screenshot tool written in C using the SDL3 library. It wo
 - Simple and easy to use interface
 
 ## Installation
-1. Install dependencies:
+Pre-built binaries(including AppImage) for sShot are available on the [Releases](https://github.com/MertYksl03/sShot/releases) page. You can download the latest release and follow the installation instructions provided in the release notes.
 
-#### On Debian/Ubuntu:
 
-```bash
-sudo apt-get install libsdl3-dev libsdl3-image-dev libnotify-dev
-```
+## Building from source
+1. Install the required dependencies:
+   #### On Debian/Ubuntu:
 
-> [!NOTE]
+   ```bash
+   sudo apt-get install libsdl3-dev libsdl3-image-dev libnotify-dev
+   ```
 
-> Important Note: The sdl3 packages may not be available in the default repositories of some distributions. In that case, you may need to build > > SDL3 from source or use a third-party repository that provides SDL3 packages. In that case see the [SDL3 installation guide](https://gist.github.com/NoxFly/1067c9fc24024d26b51a6825de5cff74#file-install-md)
->
+   > [!NOTE]   
+   > On Debian/Ubuntu, you may need to add the `experimental` repository to get the latest SDL3 packages. Or you can build SDL3 from source if you    > prefer. See the [SDL3 installation guide](https://github.com/libsdl-org/SDL/blob/main/INSTALL.md) for more details. 
+   >
 
-#### On Arch Linux:
+   #### On Arch Linux:
 
-```bash
-sudo pacman -S sdl3 sdl3_image libnotify
-```
+   ```bash
+   sudo pacman -S sdl3 sdl3_image libnotify
+   ```
 
 2. Clone the repository:
    ```bash

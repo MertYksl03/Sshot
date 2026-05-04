@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=sShot
+Comment=Minimalist screenshot tool
+Exec=sshot
+Icon=sshot_icon
+Terminal=false
+Categories=Utility;Graphics;
